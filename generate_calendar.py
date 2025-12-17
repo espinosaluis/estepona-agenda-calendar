@@ -5,6 +5,19 @@ from playwright.sync_api import sync_playwright
 
 URL = "https://turismo.estepona.es/agenda/"
 
+# ---------- helpers ----------
+
+BAD_TITLE_PREFIXES = (
+    "Horario", "Entrada", "Salida", "De lunes", "Hasta", "DEL ", "HASTA",
+    "Agenda", "E N E R O", "D I C I E M B R E", "S E M A N A L E S",
+)
+
+LOCATION_HINTS = (
+    "Plaza", "Teatro", "Casa", "Iglesia", "Biblioteca", "Centro",
+    "Palacio", "Polideportivo", "Recinto", "Urbanización",
+    "Calle", "Avda", "Avenida", "Puerto",
+)
+
 def normalize(text):
     text = text.replace("\r", "\n")
     lines = [re.sub(r"\s+", " ", l).strip() for l in text.split("\n")]
@@ -22,58 +35,84 @@ def parse_date(line):
     except ValueError:
         return None
 
-def parse_time_range(line):
-    s = line.replace("–", "-")
-    m = re.search(r"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})", s)
-    if not m:
-        return None
-    return (int(m.group(1)), int(m.group(2))), (int(m.group(3)), int(m.group(4)))
+def parse_times(line):
+    """
+    Returns list of (hour, minute) found in the line, in order.
+    """
+    return [(int(h), int(m)) for h, m in re.findall(r"\b(\d{1,2}):(\d{2})\b", line)]
+
+def looks_like_title(line):
+    if len(line) < 8:
+        return False
+    if line.startswith(BAD_TITLE_PREFIXES):
+        return False
+    # Prefer ALL CAPS or quoted titles
+    if line.upper() == line:
+        return True
+    if "“" in line or "”" in line or '"' in line:
+        return True
+    return False
+
+def extract_location(lines):
+    for l in lines:
+        for hint in LOCATION_HINTS:
+            if hint.lower() in l.lower():
+                return l
+    return ""
+
+# ---------- main parsing ----------
 
 def extract_events(lines):
     events = []
-    block = []
+    current_date = None
+    buffer = []
 
-    def flush(block):
-        date = None
-        for l in block[::-1]:
-            date = parse_date(l)
-            if date:
-                break
-        if not date:
+    def flush_block(block, date):
+        if not date or not block:
             return
 
-        time_range = None
+        # Find candidate title
+        title = None
         for l in block:
-            tr = parse_time_range(l)
-            if tr:
-                time_range = tr
+            if looks_like_title(l):
+                title = l
                 break
+        if not title:
+            # fallback: longest reasonable line
+            title = max(block, key=len)
 
-        title_candidates = [l for l in block if not parse_date(l)]
-        title = max(title_candidates, key=len) if title_candidates else "Evento"
+        location = extract_location(block)
 
-        if time_range:
-            (sh, sm), (eh, em) = time_range
-            start = date.replace(hour=sh, minute=sm)
-            end = date.replace(hour=eh, minute=em)
-            if end <= start:
-                end += timedelta(days=1)
+        # Collect times in this block
+        times = []
+        for l in block:
+            times.extend(parse_times(l))
+
+        if times:
+            # create one event per time
+            for (h, m) in times:
+                start = date.replace(hour=h, minute=m)
+                end = start + timedelta(hours=2)
+                events.append((title, start, end, location))
         else:
+            # all-day-ish fallback
             start = date.replace(hour=9, minute=0)
-            end = start + timedelta(hours=2)
+            end = start + timedelta(hours=1)
+            events.append((title, start, end, location))
 
-        events.append((title[:180], start, end, "Fuente: turismo.estepona.es"))
+    for line in lines:
+        d = parse_date(line)
+        if d:
+            flush_block(buffer, current_date)
+            buffer = []
+            current_date = d
+        else:
+            buffer.append(line)
 
-    for l in lines:
-        block.append(l)
-        if parse_date(l):
-            flush(block)
-            block = []
-
-    if block:
-        flush(block)
-
+    flush_block(buffer, current_date)
     return events
+
+# ---------- entry point ----------
 
 def main():
     with sync_playwright() as p:
@@ -84,21 +123,23 @@ def main():
         browser.close()
 
     lines = normalize(text)
-    events = extract_events(lines)
+    parsed = extract_events(lines)
 
     cal = Calendar()
-    for title, start, end, desc in events:
+    for title, start, end, location in parsed:
         e = Event()
-        e.name = title
+        e.name = title[:200]
         e.begin = start
         e.end = end
-        e.description = desc
+        if location:
+            e.location = location
+        e.description = "Fuente: turismo.estepona.es/agenda"
         cal.events.add(e)
 
     with open("agenda.ics", "w", encoding="utf-8") as f:
         f.writelines(cal)
 
-    print(f"Parsed events: {len(events)}")
+    print(f"Parsed events: {len(parsed)}")
 
 if __name__ == "__main__":
     main()
