@@ -1,11 +1,10 @@
 import re
-import requests
 from datetime import datetime, timedelta
+from urllib.request import urlopen
 from ics import Calendar, Event
 
 AGENDA_URL = "https://turismo.estepona.es/agenda/"
 
-# Keywords that indicate long-running events
 LONG_EVENTS = [
     "EXPOSICIÓN",
     "BELÉN",
@@ -13,7 +12,6 @@ LONG_EVENTS = [
     "FERIA",
 ]
 
-# Keywords / garbage to ignore completely
 IGNORE_KEYWORDS = [
     "LOUIE LOUIE",
     "ROCK BAR",
@@ -27,7 +25,6 @@ DATE_REGEX = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
 
 
 def normalize_title(text: str) -> str:
-    """Remove leading times and normalize spacing"""
     text = TIME_REGEX.sub("", text)
     return re.sub(r"\s+", " ", text).strip()
 
@@ -40,8 +37,8 @@ def should_ignore(text: str) -> bool:
     return any(k.lower() in text.lower() for k in IGNORE_KEYWORDS)
 
 
-def parse_date(date_str: str) -> datetime:
-    d, m, y = date_str
+def parse_date(parts) -> datetime:
+    d, m, y = parts
     if len(y) == 2:
         y = "20" + y
     return datetime(int(y), int(m), int(d))
@@ -50,7 +47,6 @@ def parse_date(date_str: str) -> datetime:
 def extract_events(page_text: str):
     events = []
     seen = set()
-
     current_date = None
 
     lines = [l.strip() for l in page_text.splitlines() if l.strip()]
@@ -60,7 +56,6 @@ def extract_events(page_text: str):
         if should_ignore(line):
             break
 
-        # Date line
         date_match = DATE_REGEX.search(line)
         if date_match:
             current_date = parse_date(date_match.groups())
@@ -69,12 +64,10 @@ def extract_events(page_text: str):
         if not current_date:
             continue
 
-        # Skip lines with no letters
         if not re.search(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]", line):
             continue
 
         title = normalize_title(line)
-
         if should_ignore(title):
             continue
 
@@ -87,25 +80,20 @@ def extract_events(page_text: str):
         ev = Event()
         ev.name = title
         ev.begin = current_date
-
-        # Long events: 1-day placeholder
-        if is_long_event(title):
-            ev.end = current_date + timedelta(hours=2)
-        else:
-            ev.end = current_date + timedelta(hours=2)
-
+        ev.end = current_date + timedelta(hours=2)
         ev.description = "Fuente: turismo.estepona.es/agenda"
+
         events.append(ev)
 
     return events
 
 
 def main():
-    response = requests.get(AGENDA_URL, timeout=30)
-    response.raise_for_status()
+    with urlopen(AGENDA_URL, timeout=30) as response:
+        page_text = response.read().decode("utf-8", errors="ignore")
 
     calendar = Calendar()
-    events = extract_events(response.text)
+    events = extract_events(page_text)
 
     print(f"Parsed events: {len(events)}")
 
