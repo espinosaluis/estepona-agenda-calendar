@@ -1,0 +1,32 @@
+name: Update Estepona Agenda
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install ics playwright
+          playwright install chromium
+
+      - name: Generate calendar
+        run: python generate_calendar.py
+
+      - name: Commit updated calendar
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add agenda.ics
+          git commit -m "Auto-update calendar" || echo "No changes"
+          git push
