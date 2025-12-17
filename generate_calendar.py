@@ -1,71 +1,29 @@
 import re
 import uuid
 import requests
+import urllib3
 from datetime import datetime
 from ics import Calendar, Event
+
+# Disable SSL warnings (the site has a broken cert chain)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 AGENDA_URL = "https://turismo.estepona.es/agenda/"
 OUTPUT_FILE = "agenda.ics"
 
-# Events you never want
-BLACKLIST = [
-    "LOUIE LOUIE",
-    "LOUIE",
-    "ROCK BAR",
-]
+# Always ignore this garbage event
+BLACKLIST = ["LOUIE"]
 
-def clean_text(text: str) -> str:
+def clean(text: str) -> str:
+    text = re.sub(r"<.*?>", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
-def is_blacklisted(text: str) -> bool:
-    upper = text.upper()
-    return any(bad in upper for bad in BLACKLIST)
-
-def parse_events(html: str):
-    """
-    Very defensive parsing: extract blocks that look like events.
-    This matches what the site actually outputs and avoids garbage.
-    """
-    events = []
-
-    blocks = re.findall(
-        r'<div class="agenda-item">(.*?)</div>\s*</div>',
-        html,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-
-    for block in blocks:
-        title_match = re.search(r"<h3.*?>(.*?)</h3>", block, re.DOTALL)
-        date_match = re.search(r"(\d{2}/\d{2}/\d{2,4})", block)
-        time_match = re.search(r"(\d{1,2}:\d{2})", block)
-
-        if not title_match or not date_match:
-            continue
-
-        title = clean_text(re.sub("<.*?>", "", title_match.group(1)))
-
-        if is_blacklisted(title):
-            continue
-
-        date_str = date_match.group(1)
-        time_str = time_match.group(1) if time_match else "09:00"
-
-        try:
-            date = datetime.strptime(date_str, "%d/%m/%y")
-        except ValueError:
-            date = datetime.strptime(date_str, "%d/%m/%Y")
-
-        start = datetime.strptime(
-            f"{date.strftime('%Y-%m-%d')} {time_str}",
-            "%Y-%m-%d %H:%M",
-        )
-
-        events.append((title, start))
-
-    return events
-
 def main():
-    response = requests.get(AGENDA_URL, timeout=30)
+    response = requests.get(
+        AGENDA_URL,
+        timeout=30,
+        verify=False   # ← THIS is what makes it work again
+    )
     response.raise_for_status()
 
     html = response.text
@@ -73,27 +31,48 @@ def main():
     cal = Calendar()
     seen = set()
 
-    events = parse_events(html)
+    # Very conservative extraction: title + date + time if present
+    blocks = re.findall(
+        r'<h3.*?>(.*?)</h3>.*?(?:Fecha|Date).*?(\d{2}/\d{2}/\d{4}).*?(?:Hora|Time).*?(\d{1,2}:\d{2})?',
+        html,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
 
-    for title, start in events:
+    for raw_title, date_str, time_str in blocks:
+        title = clean(raw_title)
+
+        if any(bad in title.upper() for bad in BLACKLIST):
+            continue
+
+        try:
+            start_date = datetime.strptime(date_str, "%d/%m/%Y")
+        except ValueError:
+            continue
+
+        time_str = time_str or "09:00"
+        start = datetime.strptime(
+            f"{start_date.strftime('%Y-%m-%d')} {time_str}",
+            "%Y-%m-%d %H:%M"
+        )
+
         key = (title, start)
         if key in seen:
             continue
         seen.add(key)
 
-        e = Event()
-        e.uid = f"{uuid.uuid4()}@estepona"
-        e.name = title
-        e.begin = start
-        e.end = start.replace(hour=start.hour + 2)
-        e.description = "Fuente: turismo.estepona.es/agenda"
+        event = Event()
+        event.uid = f"{uuid.uuid4()}@estepona"
+        event.name = title
+        event.begin = start
+        event.end = start.replace(hour=min(start.hour + 2, 23))
+        event.description = "Fuente: turismo.estepona.es/agenda"
 
-        cal.events.add(e)
+        cal.events.add(event)
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.writelines(cal.serialize_iter())
 
-    print(f"Parsed events: {len(cal.events)}")
+    print(f"Generated {len(cal.events)} events")
 
 if __name__ == "__main__":
     main()
