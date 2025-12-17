@@ -1,108 +1,99 @@
 import re
-from datetime import datetime, timedelta
-from urllib.request import urlopen
+import uuid
+import requests
+from datetime import datetime
 from ics import Calendar, Event
 
 AGENDA_URL = "https://turismo.estepona.es/agenda/"
+OUTPUT_FILE = "agenda.ics"
 
-LONG_EVENTS = [
-    "EXPOSICIÓN",
-    "BELÉN",
-    "PARQUE",
-    "FERIA",
-]
-
-IGNORE_KEYWORDS = [
+# Events you never want
+BLACKLIST = [
     "LOUIE LOUIE",
+    "LOUIE",
     "ROCK BAR",
-    "Copyright",
-    "Powered by WordPress",
-    "Supreme Directory",
 ]
 
-TIME_REGEX = re.compile(r"\b\d{1,2}[:.]\d{2}\b")
-DATE_REGEX = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
-
-
-def normalize_title(text: str) -> str:
-    text = TIME_REGEX.sub("", text)
+def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
+def is_blacklisted(text: str) -> bool:
+    upper = text.upper()
+    return any(bad in upper for bad in BLACKLIST)
 
-def is_long_event(title: str) -> bool:
-    return any(k in title.upper() for k in LONG_EVENTS)
-
-
-def should_ignore(text: str) -> bool:
-    return any(k.lower() in text.lower() for k in IGNORE_KEYWORDS)
-
-
-def parse_date(parts) -> datetime:
-    d, m, y = parts
-    if len(y) == 2:
-        y = "20" + y
-    return datetime(int(y), int(m), int(d))
-
-
-def extract_events(page_text: str):
+def parse_events(html: str):
+    """
+    Very defensive parsing: extract blocks that look like events.
+    This matches what the site actually outputs and avoids garbage.
+    """
     events = []
-    seen = set()
-    current_date = None
 
-    lines = [l.strip() for l in page_text.splitlines() if l.strip()]
+    blocks = re.findall(
+        r'<div class="agenda-item">(.*?)</div>\s*</div>',
+        html,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
 
-    for line in lines:
+    for block in blocks:
+        title_match = re.search(r"<h3.*?>(.*?)</h3>", block, re.DOTALL)
+        date_match = re.search(r"(\d{2}/\d{2}/\d{2,4})", block)
+        time_match = re.search(r"(\d{1,2}:\d{2})", block)
 
-        if should_ignore(line):
-            break
-
-        date_match = DATE_REGEX.search(line)
-        if date_match:
-            current_date = parse_date(date_match.groups())
+        if not title_match or not date_match:
             continue
 
-        if not current_date:
+        title = clean_text(re.sub("<.*?>", "", title_match.group(1)))
+
+        if is_blacklisted(title):
             continue
 
-        if not re.search(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]", line):
-            continue
+        date_str = date_match.group(1)
+        time_str = time_match.group(1) if time_match else "09:00"
 
-        title = normalize_title(line)
-        if should_ignore(title):
-            continue
+        try:
+            date = datetime.strptime(date_str, "%d/%m/%y")
+        except ValueError:
+            date = datetime.strptime(date_str, "%d/%m/%Y")
 
-        key = (current_date.date(), title.upper())
-        if key in seen:
-            continue
+        start = datetime.strptime(
+            f"{date.strftime('%Y-%m-%d')} {time_str}",
+            "%Y-%m-%d %H:%M",
+        )
 
-        seen.add(key)
-
-        ev = Event()
-        ev.name = title
-        ev.begin = current_date
-        ev.end = current_date + timedelta(hours=2)
-        ev.description = "Fuente: turismo.estepona.es/agenda"
-
-        events.append(ev)
+        events.append((title, start))
 
     return events
 
-
 def main():
-    with urlopen(AGENDA_URL, timeout=30) as response:
-        page_text = response.read().decode("utf-8", errors="ignore")
+    response = requests.get(AGENDA_URL, timeout=30)
+    response.raise_for_status()
 
-    calendar = Calendar()
-    events = extract_events(page_text)
+    html = response.text
 
-    print(f"Parsed events: {len(events)}")
+    cal = Calendar()
+    seen = set()
 
-    for ev in events:
-        calendar.events.add(ev)
+    events = parse_events(html)
 
-    with open("agenda.ics", "w", encoding="utf-8") as f:
-        f.writelines(calendar)
+    for title, start in events:
+        key = (title, start)
+        if key in seen:
+            continue
+        seen.add(key)
 
+        e = Event()
+        e.uid = f"{uuid.uuid4()}@estepona"
+        e.name = title
+        e.begin = start
+        e.end = start.replace(hour=start.hour + 2)
+        e.description = "Fuente: turismo.estepona.es/agenda"
+
+        cal.events.add(e)
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.writelines(cal.serialize_iter())
+
+    print(f"Parsed events: {len(cal.events)}")
 
 if __name__ == "__main__":
     main()
