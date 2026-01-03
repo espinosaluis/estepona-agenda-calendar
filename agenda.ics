@@ -6,14 +6,21 @@ DESCRIPTION:Fuente: turismo.estepona.es/agenda
 DTEND:20260104T220000Z
 DTSTART:20260104T160000Z
 SUMMARY:(December 25 & January 1: 11:00 – 23:00)
-UID:ae232c85-6382-4d1a-b62f-f4bd6f96f1cf@ae23.org
+UID:3d471e4a-458b-4ac4-ba5b-afc90cccac55@3d47.org
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION:Fuente: turismo.estepona.es/agenda\nCollection of letters addressed to Their Majesties the Three Kings by the Royal Postman\nHall of the Felipe VI Theatre
+DTEND:20260103T180000Z
+DTSTART:20260103T160000Z
+SUMMARY:– 20:00
+UID:ca3ff1d7-dcda-4187-8ff1-109928c21b4f@ca3f.org
 END:VEVENT
 BEGIN:VEVENT
 DESCRIPTION:Fuente: turismo.estepona.es/agenda\nTHE REGENCY Bar & Restaurant. BENAVISTA
 DTEND:20260112T120000Z
 DTSTART:20260112T100000Z
 SUMMARY:COFFEE MORNING ORGANIZADO POR AREME
-UID:00a60afe-90be-4c74-99a4-6154820a40e0@00a6.org
+UID:d002843b-db64-4533-99ad-63807957e149@d002.org
 END:VEVENT
 BEGIN:VEVENT
 DESCRIPTION:Fuente: turismo.estepona.es/agenda\nB E L E N E S
@@ -21,13 +28,14 @@ DTEND:20261222T200000Z
 LOCATION:BAR VICE VERSA. Puerto Deportivo 2€ socios – 3€ no socios
 DTSTART:20261222T180000Z
 SUMMARY:QUIZ BENÉFICO ORGANIZADO POR AREME
-UID:fcb9f7f5-378a-4701-860a-b311c038333f@fcb9.org
+UID:dbcd544f-fce9-4ee4-a06d-68daee611c91@dbcd.org
 END:VEVENT
 BEGIN:VEVENT
-DESCRIPTION:Fuente: turismo.estepona.es/agenda\nCollection of letters addressed to Their Majesties the Three Kings by the Royal Postman\nAntonia Guerrero Square
-DTEND:20260103T180000Z
-DTSTART:20260103T160000Z
-SUMMARY:– 20:00
-UID:979a24e9-3fc3-4df0-b3b3-4d387df23cb0@979a.org
+DESCRIPTION:Fuente: turismo.estepona.es/agenda\nEXTRAORDINARY NEW YEAR'S CONCERT BY THE MALAGA PHILHARMONIC ORCHESTRA OFMLA\nFelipe VI Theatre – Tickets\nand at the box office 2 hours before the show. +INFO: +34 667 002 542
+DTEND:20260104T090000Z
+LOCATION:http://teatroestepona.com
+DTSTART:20260104T070000Z
+SUMMARY:PM
+UID:87798447-08b3-4214-9b75-4258854e5129@8779.org
 END:VEVENT
 END:VCALENDAR
