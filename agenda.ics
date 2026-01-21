@@ -2,18 +2,18 @@ BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:ics.py - http://git.io/lLljaA
 BEGIN:VEVENT
-DESCRIPTION:Fuente: turismo.estepona.es/agenda\nBar Vice Versa – Marina. €2 members – €3 non-members
-DTEND:20261222T200000Z
-DTSTART:20261222T180000Z
-SUMMARY:Charity Quiz organized by AREME
-UID:f854184a-281a-41ad-81ef-7b0ce13874a9@f854.org
-END:VEVENT
-BEGIN:VEVENT
 DESCRIPTION:Fuente: turismo.estepona.es/agenda\nMONOLOGUE “MORERA FOR PRESIDENT” (A GOVERNMENT OF LAUGHTER) BY MANOLO MORERA\nFelipe VI Theatre. Tickets:\n/ at the box office 2 hours before
 DTEND:20260123T100000Z
 LOCATION:http://teatroestepona.com
 DTSTART:20260123T080000Z
 SUMMARY:PM
-UID:631f102a-de19-4d1f-b2f7-b89ecce32be7@631f.org
+UID:bc95bafd-1cc0-4b6c-907d-137941da9680@bc95.org
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION:Fuente: turismo.estepona.es/agenda\nBar Vice Versa – Marina. €2 members – €3 non-members
+DTEND:20261222T200000Z
+DTSTART:20261222T180000Z
+SUMMARY:Charity Quiz organized by AREME
+UID:82638d82-8ba5-46f8-b357-becf701d8caf@8263.org
 END:VEVENT
 END:VCALENDAR
